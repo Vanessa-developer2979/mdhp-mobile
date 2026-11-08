@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "680972078804",
+    "project_id": "malawidigitalhealthpassport",
+    "storage_bucket": "malawidigitalhealthpassport.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:680972078804:android:af708e41e1cd9436eaf541",
+        "android_client_info": {
+          "package_name": "mw.gov.health.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDwPL2JW2cyqKKKBDlQ9QDRb7whRQSTRck"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
