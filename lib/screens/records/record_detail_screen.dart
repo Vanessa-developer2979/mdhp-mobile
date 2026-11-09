@@ -3,13 +3,15 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+
 import '../../core/colors.dart';
 import '../../models/record.dart';
 import '../../services/record_service.dart';
 import '../../widgets/primary_button.dart';
 
 class RecordDetailScreen extends StatefulWidget {
-  final int recordId;
+  // Firestore document IDs are strings.
+  final String recordId;
 
   const RecordDetailScreen({super.key, required this.recordId});
 
@@ -28,45 +30,121 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     _loadRecord();
   }
 
+  Future<void> _showMessageDialog({
+    required String title,
+    required String message,
+    required bool isSuccess,
+  }) async {
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        icon: Icon(
+          isSuccess ? LucideIcons.checkCircle : LucideIcons.alertCircle,
+          size: 44,
+          color: isSuccess ? AppColors.success : AppColors.danger,
+        ),
+        title: Text(title, textAlign: TextAlign.center),
+        content: Text(message, textAlign: TextAlign.center),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _loadRecord() async {
-    final recordService = context.read<RecordService>();
-    final r = await recordService.getRecordById(widget.recordId);
-    if (mounted) {
+    try {
+      final recordService = context.read<RecordService>();
+
+      final record = await recordService.getRecordById(widget.recordId);
+
+      if (!mounted) return;
+
       setState(() {
-        _record = r;
+        _record = record;
         _isLoading = false;
       });
+
+      if (record == null) {
+        await _showMessageDialog(
+          title: 'Record Not Found',
+          message:
+              'This medical record could not be retrieved. It may not exist or you may not have permission to access it.',
+          isSuccess: false,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+        _record = null;
+      });
+
+      await _showMessageDialog(
+        title: 'Retrieval Error',
+        message: 'Unable to retrieve this medical record.\n\n$e',
+        isSuccess: false,
+      );
     }
   }
 
   Future<void> _downloadPdf() async {
+    if (_isDownloadingPdf) return;
+
     setState(() => _isDownloadingPdf = true);
-    final recordService = context.read<RecordService>();
-    final pdfBytes = await recordService.fetchRecordPdf(widget.recordId);
 
-    if (!mounted) return;
-    setState(() => _isDownloadingPdf = false);
+    try {
+      final recordService = context.read<RecordService>();
 
-    if (pdfBytes != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Official PDF document generated (${(pdfBytes.length / 1024).toStringAsFixed(1)} KB). Download complete.',
-          ),
-          backgroundColor: AppColors.success,
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to generate official PDF record.'),
-          backgroundColor: AppColors.danger,
-        ),
+      final pdfBytes = await recordService.fetchRecordPdf(widget.recordId);
+
+      if (!mounted) return;
+
+      setState(() => _isDownloadingPdf = false);
+
+      if (pdfBytes != null) {
+        await _showMessageDialog(
+          title: 'PDF Generated',
+          message:
+              'The official PDF document was generated successfully (${(pdfBytes.length / 1024).toStringAsFixed(1)} KB).',
+          isSuccess: true,
+        );
+      } else {
+        await _showMessageDialog(
+          title: 'PDF Generation Failed',
+          message:
+              'The official PDF record could not be generated. Please try again later.',
+          isSuccess: false,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() => _isDownloadingPdf = false);
+
+      await _showMessageDialog(
+        title: 'PDF Error',
+        message: 'An error occurred while generating the PDF.\n\n$e',
+        isSuccess: false,
       );
     }
   }
 
   void _showEncounterQrModal() {
+    if (_record == null) return;
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -87,7 +165,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
             ),
             const SizedBox(height: 18),
             const Text(
-              'Encounter Encrypted QR Token',
+              'Medical Record QR Code',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -96,7 +174,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Show this to authorized clinical staff for immediate record verification.',
+              'This QR code identifies your medical record. Only your authenticated account can retrieve it.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
@@ -115,7 +193,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                 ],
               ),
               child: QrImageView(
-                data: 'rec_${widget.recordId}',
+                // Exact Firestore document ID.
+                data: _record!.id,
                 version: QrVersions.auto,
                 size: 180,
                 eyeStyle: const QrEyeStyle(
@@ -129,11 +208,12 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
               ),
             ),
             const SizedBox(height: 14),
-            Text(
-              'MDHP-REC-${widget.recordId.toString().padLeft(6, '0')}',
+            SelectableText(
+              _record!.id,
+              textAlign: TextAlign.center,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
-                letterSpacing: 1.0,
+                letterSpacing: 1,
                 color: AppColors.primary,
               ),
             ),
@@ -156,7 +236,35 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     if (_record == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Record Not Found')),
-        body: const Center(child: Text('This health record could not be retrieved.')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  LucideIcons.fileWarning,
+                  size: 52,
+                  color: AppColors.textMuted,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'This health record could not be retrieved.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Go Back'),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
     }
 
@@ -175,6 +283,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
           ),
           IconButton(
             icon: const Icon(LucideIcons.share2),
+            tooltip: 'Generate PDF',
             onPressed: _downloadPdf,
           ),
         ],
@@ -184,7 +293,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Verified Header Banner
+            // Verified record header.
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
@@ -205,9 +314,11 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // "Verified by Provider" badge with green check
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.success.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(20),
@@ -218,7 +329,11 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(LucideIcons.checkCircle2, size: 14, color: AppColors.success),
+                            Icon(
+                              LucideIcons.checkCircle2,
+                              size: 14,
+                              color: AppColors.success,
+                            ),
                             SizedBox(width: 6),
                             Text(
                               'Verified by Provider',
@@ -231,12 +346,16 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                           ],
                         ),
                       ),
-                      Text(
-                        'REC-${_record!.id.toString().padLeft(6, '0')}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textMuted,
+                      Flexible(
+                        child: Text(
+                          'REC-${_record!.id}',
+                          textAlign: TextAlign.end,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textMuted,
+                          ),
                         ),
                       ),
                     ],
@@ -254,27 +373,32 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                   const SizedBox(height: 10),
                   const Divider(color: AppColors.border),
                   const SizedBox(height: 10),
-
-                  // Metadata list
-                  _buildMetaRow(LucideIcons.calendar, 'Date of Visit', formattedDate),
+                  _buildMetaRow(
+                    LucideIcons.calendar,
+                    'Date of Visit',
+                    formattedDate,
+                  ),
                   const SizedBox(height: 8),
                   _buildMetaRow(
                     LucideIcons.stethoscope,
                     'Attending Doctor',
-                    _record!.providerName != null ? 'Dr. ${_record!.providerName}' : 'Medical Officer',
+                    _record!.providerName != null
+                        ? 'Dr. ${_record!.providerName}'
+                        : 'Medical Officer',
                   ),
                   const SizedBox(height: 8),
                   _buildMetaRow(
                     LucideIcons.building2,
                     'Health Facility',
-                    '${_record!.facilityName ?? 'Central Hospital'} (${_record!.facilityDistrict ?? 'District'})',
+                    '${_record!.facilityName ?? 'Central Hospital'} '
+                        '(${_record!.facilityDistrict ?? 'District'})',
                   ),
                 ],
               ),
             ),
+
             const SizedBox(height: 20),
 
-            // Accordion Sections
             const Text(
               'Clinical Evaluation',
               style: TextStyle(
@@ -285,7 +409,6 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
             ),
             const SizedBox(height: 12),
 
-            // 1. Diagnosis
             _buildAccordionCard(
               title: 'Primary Diagnosis',
               icon: LucideIcons.activity,
@@ -295,7 +418,6 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
             ),
             const SizedBox(height: 10),
 
-            // 2. Prescription
             _buildAccordionCard(
               title: 'Prescriptions & Medication',
               icon: LucideIcons.pill,
@@ -305,38 +427,46 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
             ),
             const SizedBox(height: 10),
 
-            // 3. Lab Results
             _buildAccordionCard(
               title: 'Laboratory Investigations',
               icon: LucideIcons.flaskConical,
               iconColor: const Color(0xFF6366F1),
-              content: _record!.labResults ?? 'No laboratory investigations ordered for this encounter.',
+              content:
+                  _record!.labResults ??
+                  'No laboratory investigations ordered for this encounter.',
               initiallyExpanded: true,
             ),
             const SizedBox(height: 10),
 
-            // 4. Notes
             _buildAccordionCard(
               title: 'Clinical Recommendations & Notes',
               icon: LucideIcons.fileText,
               iconColor: const Color(0xFFF59E0B),
-              content: _record!.notes ?? 'Standard recovery instructions provided to patient.',
+              content:
+                  _record!.notes ??
+                  'Standard recovery instructions provided to patient.',
               initiallyExpanded: false,
             ),
+
             const SizedBox(height: 28),
 
-            // Official PDF Download Button
             PrimaryButton(
               text: 'Download Official PDF Passport Record',
               icon: LucideIcons.fileDown,
               isLoading: _isDownloadingPdf,
               onPressed: _downloadPdf,
             ),
+
             const SizedBox(height: 16),
+
             Center(
               child: Text(
                 'Issued under the Republic of Malawi Digital Health Framework',
-                style: TextStyle(fontSize: 11, color: AppColors.textMuted.withValues(alpha: 0.8)),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textMuted.withValues(alpha: 0.8),
+                ),
               ),
             ),
           ],
@@ -352,12 +482,20 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
         const SizedBox(width: 8),
         Text(
           '$label: ',
-          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+          style: const TextStyle(
+            fontSize: 13,
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w500,
+          ),
         ),
         Expanded(
           child: Text(
             value,
-            style: const TextStyle(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.primary,
+              fontWeight: FontWeight.bold,
+            ),
             overflow: TextOverflow.ellipsis,
           ),
         ),

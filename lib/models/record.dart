@@ -1,25 +1,36 @@
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class HealthRecordModel {
-  final int id;
-  final int citizenId;
-  final int providerId;
-  final int facilityId;
+  // Firestore document ID
+  final String id;
+
+  // Firebase UID references
+  final String patientUID;
+  final String providerUID;
+  final String? facilityId;
+
   final DateTime visitDate;
   final String diagnosis;
   final String prescription;
+
   final String? labResults;
   final String? notes;
+
+  // Display information
   final String? citizenName;
   final String? citizenNationalId;
   final String? providerName;
   final String? facilityName;
   final String? facilityDistrict;
+
   final String? createdAt;
 
   HealthRecordModel({
     required this.id,
-    required this.citizenId,
-    required this.providerId,
-    required this.facilityId,
+    required this.patientUID,
+    required this.providerUID,
+    this.facilityId,
     required this.visitDate,
     required this.diagnosis,
     required this.prescription,
@@ -33,43 +44,73 @@ class HealthRecordModel {
     this.createdAt,
   });
 
-  factory HealthRecordModel.fromJson(Map<String, dynamic> json) {
+  factory HealthRecordModel.fromFirestore(
+    String documentId,
+    Map<String, dynamic> data,
+  ) {
+    DateTime parseDate(dynamic value) {
+      if (value is Timestamp) {
+        return value.toDate();
+      }
+
+      if (value is DateTime) {
+        return value;
+      }
+
+      if (value is String) {
+        return DateTime.tryParse(value) ?? DateTime.now();
+      }
+
+      return DateTime.now();
+    }
+
+    final created = data['createdAt'];
+
+    String? formattedCreatedAt;
+
+    if (created is Timestamp) {
+      formattedCreatedAt = created.toDate().toIso8601String();
+    } else if (created is DateTime) {
+      formattedCreatedAt = created.toIso8601String();
+    } else if (created is String) {
+      formattedCreatedAt = created;
+    }
+
     return HealthRecordModel(
-      id: json['id'] as int,
-      citizenId: json['citizen_id'] as int,
-      providerId: json['provider_id'] as int,
-      facilityId: json['facility_id'] as int,
-      visitDate: DateTime.tryParse(json['visit_date'] as String? ?? '') ?? DateTime.now(),
-      diagnosis: json['diagnosis'] as String? ?? 'General Consultation',
-      prescription: json['prescription'] as String? ?? 'No prescriptions',
-      labResults: json['lab_results'] as String?,
-      notes: json['notes'] as String?,
-      citizenName: json['citizen_name'] as String?,
-      citizenNationalId: json['citizen_national_id'] as String?,
-      providerName: json['provider_name'] as String?,
-      facilityName: json['facility_name'] as String?,
-      facilityDistrict: json['facility_district'] as String?,
-      createdAt: json['created_at'] as String?,
+      id: documentId,
+      patientUID: data['patientUID']?.toString() ?? '',
+      providerUID: data['providerUID']?.toString() ?? '',
+      facilityId: data['facilityId']?.toString(),
+      visitDate: parseDate(data['visitDate']),
+      diagnosis: data['diagnosis'] as String? ?? 'General Consultation',
+      prescription: data['prescription'] as String? ?? 'No prescriptions',
+      labResults: data['labResults'] as String?,
+      notes: data['notes'] as String?,
+      citizenName: data['citizenName'] as String?,
+      citizenNationalId: data['citizenNationalId'] as String?,
+      providerName: data['providerName'] as String?,
+      facilityName: data['facilityName'] as String?,
+      facilityDistrict: data['facilityDistrict'] as String?,
+      createdAt: formattedCreatedAt,
     );
   }
 
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toFirestore() {
     return {
-      'id': id,
-      'citizen_id': citizenId,
-      'provider_id': providerId,
-      'facility_id': facilityId,
-      'visit_date': visitDate.toIso8601String(),
+      'patientUID': patientUID,
+      'providerUID': providerUID,
+      'facilityId': facilityId,
+      'visitDate': Timestamp.fromDate(visitDate),
       'diagnosis': diagnosis,
       'prescription': prescription,
-      'lab_results': labResults,
+      'labResults': labResults,
       'notes': notes,
-      'citizen_name': citizenName,
-      'citizen_national_id': citizenNationalId,
-      'provider_name': providerName,
-      'facility_name': facilityName,
-      'facility_district': facilityDistrict,
-      'created_at': createdAt,
+      'citizenName': citizenName,
+      'citizenNationalId': citizenNationalId,
+      'providerName': providerName,
+      'facilityName': facilityName,
+      'facilityDistrict': facilityDistrict,
+      'createdAt': FieldValue.serverTimestamp(),
     };
   }
 }

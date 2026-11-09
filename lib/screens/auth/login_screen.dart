@@ -1,7 +1,9 @@
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+
 import '../../core/colors.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/primary_button.dart';
@@ -15,12 +17,10 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController(
-    text: 'tiwonge.mwale@citizen.mw',
-  );
-  final _passwordController = TextEditingController(text: 'CitizenPass123!');
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
   bool _obscurePassword = true;
-  bool _showSuccessBanner = false;
 
   @override
   void dispose() {
@@ -29,22 +29,116 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  Future<void> _showMessageDialog({
+    required String title,
+    required String message,
+    required IconData icon,
+    required Color color,
+  }) async {
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+        ),
+        icon: Icon(icon, color: color, size: 42),
+        title: Text(
+          title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          message,
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
     final auth = context.read<AuthService>();
+
     final success = await auth.login(
-      _emailController.text,
+      _emailController.text.trim(),
       _passwordController.text,
     );
 
-    if (success && mounted) {
-      setState(() => _showSuccessBanner = true);
-      await Future.delayed(const Duration(seconds: 2));
-      if (mounted) {
-        context.go('/dashboard');
-      }
+    if (!mounted) return;
+
+    if (success) {
+      await _showMessageDialog(
+        title: 'Login Successful',
+        message:
+            'Welcome to your Malawi Digital Health Passport.',
+        icon: LucideIcons.checkCircle,
+        color: AppColors.success,
+      );
+
+      if (!mounted) return;
+
+      context.go('/dashboard');
+    } else {
+      await _showMessageDialog(
+        title: 'Login Failed',
+        message: auth.errorMessage ??
+            'We could not sign you in. Please check your email address and password, then try again.',
+        icon: LucideIcons.alertCircle,
+        color: AppColors.danger,
+      );
     }
+  }
+
+  Future<void> _showForgotPasswordDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+        ),
+        icon: const Icon(
+          Icons.lock_outline,
+          color: AppColors.primary,
+          size: 40,
+        ),
+        title: const Text(
+          'Password Assistance',
+          textAlign: TextAlign.center,
+        ),
+        content: const Text(
+          'If you have forgotten your password, use the password reset option associated with your registered email address or contact your local District Health Office for assistance.',
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -59,18 +153,25 @@ class _LoginScreenState extends State<LoginScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [AppColors.primary, AppColors.primaryDark],
+            colors: [
+              AppColors.primary,
+              AppColors.primaryDark,
+            ],
           ),
         ),
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 20,
+              ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text(
                     'Malawi Digital Health Passport',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 26,
@@ -88,7 +189,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // White Rounded Card
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
@@ -116,45 +216,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           const SizedBox(height: 6),
-                          if (_showSuccessBanner) ...[
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.success.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: AppColors.success.withValues(
-                                    alpha: 0.3,
-                                  ),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    LucideIcons.checkCircle,
-                                    color: AppColors.success,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      'Login Successful. Redirecting...',
-                                      style: TextStyle(
-                                        color: AppColors.success,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
                           const Text(
                             'Enter your registered email and password to access your health passport.',
                             style: TextStyle(
@@ -165,13 +226,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 22),
 
-                          // Email Field
                           TextFormField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
                             decoration: const InputDecoration(
                               labelText: 'Email Address',
-                              hintText: 'e.g. tiwonge@citizen.mw',
+                              hintText: 'e.g. citizen@example.com',
                               prefixIcon: Icon(
                                 LucideIcons.mail,
                                 size: 20,
@@ -182,18 +243,21 @@ class _LoginScreenState extends State<LoginScreen> {
                               if (val == null || val.trim().isEmpty) {
                                 return 'Email address is required';
                               }
+
                               if (!val.contains('@')) {
                                 return 'Please enter a valid email address';
                               }
+
                               return null;
                             },
                           ),
                           const SizedBox(height: 16),
 
-                          // Password Field
                           TextFormField(
                             controller: _passwordController,
                             obscureText: _obscurePassword,
+                            textInputAction: TextInputAction.done,
+                            onFieldSubmitted: (_) => _handleLogin(),
                             decoration: InputDecoration(
                               labelText: 'Password',
                               prefixIcon: const Icon(
@@ -211,7 +275,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 onPressed: () {
                                   setState(() {
-                                    _obscurePassword = !_obscurePassword;
+                                    _obscurePassword =
+                                        !_obscurePassword;
                                   });
                                 },
                               ),
@@ -220,28 +285,21 @@ class _LoginScreenState extends State<LoginScreen> {
                               if (val == null || val.isEmpty) {
                                 return 'Password is required';
                               }
+
                               return null;
                             },
                           ),
                           const SizedBox(height: 10),
 
-                          // Forgot Password Link
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Contact your local District Health Office for password resets.',
-                                    ),
-                                  ),
-                                );
-                              },
+                              onPressed: _showForgotPasswordDialog,
                               style: TextButton.styleFrom(
                                 padding: EdgeInsets.zero,
                                 minimumSize: const Size(50, 30),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                tapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
                               ),
                               child: const Text(
                                 'Forgot Password?',
@@ -255,7 +313,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 20),
 
-                          // Pill LOGIN button
                           PrimaryButton(
                             text: 'LOGIN',
                             isLoading: auth.isLoading,
@@ -265,9 +322,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 24),
 
-                  // "New Citizen? Register Here" footer
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -293,7 +350,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ],
                   ),
+
                   const SizedBox(height: 12),
+
                   Text(
                     'Malawi 2063 · Secure Digital Infrastructure',
                     style: TextStyle(

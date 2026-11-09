@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+
 import 'colors.dart';
 import '../services/auth_service.dart';
 import '../screens/auth/login_screen.dart';
@@ -18,35 +19,51 @@ GoRouter createRouter(AuthService authService) {
   return GoRouter(
     initialLocation: '/splash',
     refreshListenable: authService,
+
     redirect: (context, state) {
+      final location = state.matchedLocation;
       final isAuthenticated = authService.isAuthenticated;
-      final isAuthRoute = state.matchedLocation == '/login' || state.matchedLocation == '/register';
+      final isLoading = authService.isLoading;
+
+      final isAuthRoute = location == '/login' || location == '/register';
+
+      if (isLoading) {
+        return location == '/splash' ? null : '/splash';
+      }
+
+      if (location == '/splash') {
+        return isAuthenticated ? '/dashboard' : '/login';
+      }
 
       if (!isAuthenticated && !isAuthRoute) {
         return '/login';
       }
+
       if (isAuthenticated && isAuthRoute) {
         return '/dashboard';
       }
+
       return null;
     },
+
     routes: [
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
-      GoRoute(
-        path: '/register',
-        builder: (context, state) => const RegisterScreen(),
-      ),
       GoRoute(
         path: '/splash',
         builder: (context, state) => const SplashScreen(),
       ),
+
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => const RegisterScreen(),
+      ),
+
       GoRoute(
         path: '/scan',
         builder: (context, state) => const ScannerScreen(),
       ),
+
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return Scaffold(
@@ -60,7 +77,10 @@ GoRouter createRouter(AuthService authService) {
               ),
               selectedItemColor: AppColors.primary,
               unselectedItemColor: AppColors.textMuted,
-              selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              selectedLabelStyle: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
               items: const [
                 BottomNavigationBarItem(
                   icon: Icon(LucideIcons.home),
@@ -74,7 +94,10 @@ GoRouter createRouter(AuthService authService) {
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(LucideIcons.fileText),
-                  activeIcon: Icon(LucideIcons.fileText, color: AppColors.primary),
+                  activeIcon: Icon(
+                    LucideIcons.fileText,
+                    color: AppColors.primary,
+                  ),
                   label: 'Records',
                 ),
                 BottomNavigationBarItem(
@@ -86,6 +109,7 @@ GoRouter createRouter(AuthService authService) {
             ),
           );
         },
+
         branches: [
           StatefulShellBranch(
             routes: [
@@ -95,6 +119,7 @@ GoRouter createRouter(AuthService authService) {
               ),
             ],
           ),
+
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -103,6 +128,7 @@ GoRouter createRouter(AuthService authService) {
               ),
             ],
           ),
+
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -111,6 +137,7 @@ GoRouter createRouter(AuthService authService) {
               ),
             ],
           ),
+
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -121,13 +148,17 @@ GoRouter createRouter(AuthService authService) {
           ),
         ],
       ),
+
+      // Firestore document IDs are strings, not integers.
       GoRoute(
         path: '/records/:id',
         builder: (context, state) {
-          final id = int.tryParse(state.pathParameters['id'] ?? '0') ?? 0;
-          return RecordDetailScreen(recordId: id);
+          final recordId = state.pathParameters['id'] ?? '';
+
+          return RecordDetailScreen(recordId: recordId);
         },
       ),
+
       GoRoute(
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),

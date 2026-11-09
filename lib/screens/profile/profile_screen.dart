@@ -182,35 +182,6 @@ class ProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: 28),
 
-            // Edit Profile (outlined)
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.primary, width: 1.5),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(28),
-                  ),
-                ),
-                icon: const Icon(LucideIcons.userCog, size: 18, color: AppColors.primary),
-                label: const Text(
-                  'Edit Contact Information',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
-                  ),
-                ),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Contact updates must be verified with NRB.')),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 14),
-
             // Log Out (red, clears storage -> /login)
             SizedBox(
               width: double.infinity,
